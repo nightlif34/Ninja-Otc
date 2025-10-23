@@ -529,26 +529,22 @@ async def deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     for deal in deals[:20]:
         seller = db.get_user(deal['seller_id'])
-        seller_username = f"@{seller['username']}" if seller and seller['username'] else f"ID {deal['seller_id']}"
+        seller_id_str = deal['seller_id']
+        seller_username = f"@{seller['username']}" if seller and seller['username'] else "не указан"
+        seller_info = f"{seller_username} (ID {seller_id_str})" if seller and seller['username'] else f"ID {seller_id_str}"
         
-        buyer_username = "не присоединился"
+        buyer_info = "не присоединился"
         if deal['buyer_id']:
             buyer = db.get_user(deal['buyer_id'])
-            buyer_username = f"@{buyer['username']}" if buyer and buyer['username'] else f"ID {deal['buyer_id']}"
+            buyer_id_str = deal['buyer_id']
+            buyer_username = f"@{buyer['username']}" if buyer and buyer['username'] else "не указан"
+            buyer_info = f"{buyer_username} (ID {buyer_id_str})" if buyer and buyer['username'] else f"ID {buyer_id_str}"
         
-        status_map = {
-            'pending': 'ожидание',
-            'payment_confirmed': 'оплата подтверждена',
-            'completed': 'завершено'
-        }
-        status = status_map.get(deal['status'], deal['status'])
-        
-        text += f"Сделка #{deal['deal_id']}\n"
-        text += f"Покупатель: {buyer_username}\n"
-        text += f"Продавец: {seller_username}\n"
-        text += f"Сумма: {deal['amount']}\n"
-        text += f"Валюта: {deal['payment_type']}\n"
-        text += f"Статус: {status}\n\n"
+        text += f"📌 Продавец: {seller_info}\n"
+        text += f"👤 Покупатель: {buyer_info}\n"
+        text += f"• Покупка: {deal['description']}\n"
+        text += f"🏦 Адрес для оплаты: {deal['payment_address']}\n"
+        text += f"💰 Сумма к оплате: {deal['amount']} {deal['payment_type']}\n\n"
     
     if len(deals) > 20:
         text += f"... и ещё {len(deals) - 20} сделок"

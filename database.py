@@ -246,8 +246,13 @@ class Database:
     def set_user_successful_deals(self, user_id: int, count: int) -> bool:
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET successful_deals = ? WHERE user_id = ?", (count, user_id))
-        rows_affected = cursor.rowcount
+        
+        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO users (user_id, successful_deals) VALUES (?, ?)", (user_id, count))
+        else:
+            cursor.execute("UPDATE users SET successful_deals = ? WHERE user_id = ?", (count, user_id))
+        
         conn.commit()
         conn.close()
-        return rows_affected > 0
+        return True
