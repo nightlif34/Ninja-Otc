@@ -77,7 +77,7 @@ class Database:
             }
         return None
     
-    def create_or_update_user(self, user_id: int, username: str = None):
+    def create_or_update_user(self, user_id: int, username: Optional[str] = None):
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -88,7 +88,7 @@ class Database:
         conn.commit()
         conn.close()
     
-    def update_user_payment_details(self, user_id: int, ton_wallet: str = None, bank_card: str = None):
+    def update_user_payment_details(self, user_id: int, ton_wallet: Optional[str] = None, bank_card: Optional[str] = None):
         conn = self.get_connection()
         cursor = conn.cursor()
         
