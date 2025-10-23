@@ -73,6 +73,14 @@ async def handle_deal_join(update: Update, context: ContextTypes.DEFAULT_TYPE, d
     buyer = update.effective_user
     db.create_or_update_user(buyer.id, buyer.username)
     
+    if buyer.id == deal['seller_id']:
+        await update.message.reply_text("❌ Вы не можете присоединиться к своей собственной сделке.")
+        return
+    
+    if deal['buyer_id'] is not None and deal['buyer_id'] != buyer.id:
+        await update.message.reply_text("❌ К этой сделке уже присоединился другой покупатель.")
+        return
+    
     if deal['buyer_id'] is None:
         db.set_deal_buyer(deal_id, buyer.id)
     
@@ -226,23 +234,54 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = context.user_data.get('deal_amount')
             deal_type = context.user_data.get('deal_type')
             
+            if not amount or not description:
+                await update.message.reply_text(
+                    "❌ Ошибка создания сделки. Попробуйте снова.",
+                    reply_markup=get_back_button()
+                )
+                del context.user_data['awaiting']
+                return
+            
             user = db.get_user(user_id)
             
             if deal_type == 'ton':
-                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else "не указан"
+                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else None
                 payment_type = "TON"
             elif deal_type == 'card':
-                payment_address = user['bank_card'] if user and user['bank_card'] else "не указана"
+                payment_address = user['bank_card'] if user and user['bank_card'] else None
                 payment_type = "RUB"
             elif deal_type == 'stars':
-                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else "не указан"
+                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else None
                 payment_type = "Stars"
             else:
-                payment_address = "не указан"
+                payment_address = None
                 payment_type = "Unknown"
             
+            if not payment_address:
+                await update.message.reply_text(
+                    f"❌ Сначала добавьте реквизиты для оплаты в разделе 'Управление реквизитами'.",
+                    reply_markup=get_back_button()
+                )
+                del context.user_data['awaiting']
+                return
+            
             deal_id = generate_deal_id()
-            db.create_deal(deal_id, user_id, amount, description, payment_type, payment_address)
+            max_retries = 5
+            created = False
+            
+            for _ in range(max_retries):
+                if db.create_deal(deal_id, user_id, amount, description, payment_type, payment_address):
+                    created = True
+                    break
+                deal_id = generate_deal_id()
+            
+            if not created:
+                await update.message.reply_text(
+                    "❌ Ошибка создания сделки. Попробуйте снова позже.",
+                    reply_markup=get_back_button()
+                )
+                del context.user_data['awaiting']
+                return
             
             deal_link = f"https://t.me/NinjaOTCRobot?start={deal_id}"
             
@@ -312,6 +351,14 @@ async def handle_receipt_confirmation(update: Update, context: ContextTypes.DEFA
     deal = db.get_deal(deal_id)
     if not deal:
         await query.answer("❌ Сделка не найдена")
+        return
+    
+    if deal['buyer_id'] != query.from_user.id:
+        await query.answer("❌ Только покупатель может подтвердить получение", show_alert=True)
+        return
+    
+    if deal['status'] != 'payment_confirmed':
+        await query.answer("❌ Оплата ещё не подтверждена", show_alert=True)
         return
     
     db.complete_deal(deal_id)
@@ -433,6 +480,10 @@ async def del_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def set_my_deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    if not db.is_owner(user_id):
+        await update.message.reply_text("❌ Только владельцы могут устанавливать количество сделок.")
+        return
     
     if not context.args or len(context.args) < 1:
         await update.message.reply_text("❌ Использование: /set_my_deals <число>")
