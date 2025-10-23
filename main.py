@@ -247,23 +247,29 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if deal_type == 'ton':
                 payment_address = user['ton_wallet'] if user and user['ton_wallet'] else None
                 payment_type = "TON"
+                if not payment_address:
+                    await update.message.reply_text(
+                        f"❌ Сначала добавьте TON-кошелёк в разделе 'Управление реквизитами'.",
+                        reply_markup=get_back_button()
+                    )
+                    del context.user_data['awaiting']
+                    return
             elif deal_type == 'card':
                 payment_address = user['bank_card'] if user and user['bank_card'] else None
                 payment_type = "RUB"
+                if not payment_address:
+                    await update.message.reply_text(
+                        f"❌ Сначала добавьте банковскую карту в разделе 'Управление реквизитами'.",
+                        reply_markup=get_back_button()
+                    )
+                    del context.user_data['awaiting']
+                    return
             elif deal_type == 'stars':
-                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else None
+                payment_address = user['ton_wallet'] if user and user['ton_wallet'] else "Оплата через Telegram Stars"
                 payment_type = "Stars"
             else:
                 payment_address = None
                 payment_type = "Unknown"
-            
-            if not payment_address:
-                await update.message.reply_text(
-                    f"❌ Сначала добавьте реквизиты для оплаты в разделе 'Управление реквизитами'.",
-                    reply_markup=get_back_button()
-                )
-                del context.user_data['awaiting']
-                return
             
             deal_id = generate_deal_id()
             max_retries = 5
@@ -283,7 +289,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del context.user_data['awaiting']
                 return
             
-            deal_link = f"https://t.me/NinjaOTCRobot?start={deal_id}"
+            deal_link = f"https://t.me/OtcNinjaRobot?start={deal_id}"
             
             await update.message.reply_text(
                 f"✅ Сделка создана!\n\n"
@@ -506,7 +512,7 @@ async def set_my_deals_command(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await update.message.reply_text("❌ Ошибка при обновлении данных.")
 
-async def show_deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not db.is_owner(user_id):
@@ -519,7 +525,7 @@ async def show_deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("📋 Сделок пока нет.")
         return
     
-    text = "📋 Все сделки:\n\n"
+    text = "📋 Все сделки в боте:\n\n"
     
     for deal in deals[:20]:
         seller = db.get_user(deal['seller_id'])
@@ -538,9 +544,10 @@ async def show_deals_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         status = status_map.get(deal['status'], deal['status'])
         
         text += f"Сделка #{deal['deal_id']}\n"
-        text += f"Продавец: {seller_username}\n"
         text += f"Покупатель: {buyer_username}\n"
-        text += f"Сумма: {deal['amount']} {deal['payment_type']}\n"
+        text += f"Продавец: {seller_username}\n"
+        text += f"Сумма: {deal['amount']}\n"
+        text += f"Валюта: {deal['payment_type']}\n"
         text += f"Статус: {status}\n\n"
     
     if len(deals) > 20:
@@ -564,7 +571,7 @@ def main():
     application.add_handler(CommandHandler("add", add_admin_command))
     application.add_handler(CommandHandler("del", del_admin_command))
     application.add_handler(CommandHandler("set_my_deals", set_my_deals_command))
-    application.add_handler(CommandHandler("show_deals", show_deals_command))
+    application.add_handler(CommandHandler("deals", deals_command))
     
     application.add_handler(CallbackQueryHandler(button_handler))
     
